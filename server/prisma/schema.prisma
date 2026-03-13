@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String     @id @default(uuid())
+  username     String     @unique
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  notebooks    Notebook[]
+  tags         Tag[]
+
+  @@map("users")
+}
+
+model Notebook {
+  id          String    @id @default(uuid())
+  name        String
+  description String    @default("") @map("description")
+  color       String    @default("")
+  icon        String    @default("notebook")
+  userId      String    @map("user_id")
+  sortOrder   Int       @default(0) @map("sort_order")
+  isDeleted   Boolean   @default(false) @map("is_deleted")
+  deletedAt   DateTime? @map("deleted_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folders     Folder[]
+  notes       Note[]
+
+  @@map("notebooks")
+}
+
+model Folder {
+  id          String    @id @default(uuid())
+  name        String
+  description String    @default("") @map("description")
+  notebookId  String    @map("notebook_id")
+  parentId    String?   @map("parent_id")
+  depth       Int       @default(1)
+  sortOrder   Int       @default(0) @map("sort_order")
+  isDeleted   Boolean   @default(false) @map("is_deleted")
+  deletedAt   DateTime? @map("deleted_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  notebook    Notebook  @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  parent      Folder?   @relation("FolderNesting", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Folder[]  @relation("FolderNesting")
+  notes       Note[]
+
+  @@map("folders")
+}
+
+model Note {
+  id           String        @id @default(uuid())
+  title        String        @default("Untitled")
+  folderId     String?       @map("folder_id")
+  notebookId   String        @map("notebook_id")
+  contentPath  String        @default("") @map("content_path")
+  draftPath    String?       @map("draft_path")
+  isPinned     Boolean       @default(false) @map("is_pinned")
+  isFavorite   Boolean       @default(false) @map("is_favorite")
+  isDirty      Boolean       @default(false) @map("is_dirty")
+  isPublic     Boolean       @default(false) @map("is_public")
+  publicSlug   String?       @unique @map("public_slug")
+  isDeleted    Boolean       @default(false) @map("is_deleted")
+  deletedAt    DateTime?     @map("deleted_at")
+  sortOrder    Int           @default(0) @map("sort_order")
+  lastOpenedAt DateTime?     @map("last_opened_at")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  folder       Folder?       @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  notebook     Notebook      @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  tags         NoteTag[]
+  versions     NoteVersion[]
+  images       Image[]
+
+  @@map("notes")
+}
+
+model Tag {
+  id        String    @id @default(uuid())
+  name      String
+  color     String    @default("#6366f1")
+  userId    String    @map("user_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes     NoteTag[]
+
+  @@unique([name, userId])
+  @@map("tags")
+}
+
+model NoteTag {
+  noteId String @map("note_id")
+  tagId  String @map("tag_id")
+
+  note   Note   @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, tagId])
+  @@map("note_tags")
+}
+
+model NoteVersion {
+  id            String   @id @default(uuid())
+  noteId        String   @map("note_id")
+  contentPath   String   @map("content_path")
+  versionNumber Int      @map("version_number")
+  message       String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  note          Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, versionNumber])
+  @@map("note_versions")
+}
+
+model Image {
+  id        String   @id @default(uuid())
+  noteId    String   @map("note_id")
+  filename  String
+  path      String
+  size      Int
+  createdAt DateTime @default(now()) @map("created_at")
+
+  note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@map("images")
+}
