@@ -8,6 +8,7 @@ import {
   verifyRefreshToken,
   type JwtPayload,
 } from '../plugins/auth.js';
+import { generateDEK, encryptDEK } from '../services/crypto.js';
 
 const prisma = new PrismaClient();
 
@@ -45,9 +46,11 @@ export async function authRoutes(server: FastifyInstance) {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const dek = generateDEK();
+    const encryptedDek = encryptDEK(dek);
 
     const user = await prisma.user.create({
-      data: { username, email, passwordHash },
+      data: { username, email, passwordHash, encryptionKey: new Uint8Array(encryptedDek) },
     });
 
     const payload: JwtPayload = { userId: user.id, username: user.username };

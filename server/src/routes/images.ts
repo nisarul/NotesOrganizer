@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import sharp from 'sharp';
-import { saveImageFile, PATHS } from '../services/storage.js';
+import { saveImageFile, readImageFile, PATHS } from '../services/storage.js';
 
 const prisma = new PrismaClient();
 
@@ -41,7 +41,7 @@ export async function imageRoutes(server: FastifyInstance) {
       }
     }
 
-    const filePath = await saveImageFile(note.id, imageId, ext, processedBuffer);
+    const filePath = await saveImageFile(note.id, imageId, ext, processedBuffer, request.user!.userId);
 
     const image = await prisma.image.create({
       data: {
@@ -77,14 +77,14 @@ export async function imageRoutes(server: FastifyInstance) {
     const filePath = path.join(PATHS.images, id, imageFile);
 
     try {
-      const { createReadStream } = await import('fs');
       const ext = path.extname(imageFile).toLowerCase();
       const mimeMap: Record<string, string> = {
         '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
         '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
       };
+      const decryptedBuffer = await readImageFile(id, imageFile, request.user!.userId);
       reply.type(mimeMap[ext] || 'application/octet-stream');
-      return reply.send(createReadStream(filePath));
+      return reply.send(decryptedBuffer);
     } catch {
       return reply.code(404).send({ error: 'Image not found' });
     }

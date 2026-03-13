@@ -70,10 +70,14 @@ async function start() {
       });
       if (!note) return reply.code(404).send({ error: 'Note not found or not public' });
 
+      // Get the note owner's userId for decryption
+      const notebook = await prisma.notebook.findUnique({ where: { id: note.notebookId }, select: { userId: true } });
+      const ownerId = notebook!.userId;
+
       const { readNoteFile, readDraftFile } = await import('./services/storage.js');
       const content = note.isDirty
-        ? (await readDraftFile(note.id)) ?? await readNoteFile(note.id)
-        : await readNoteFile(note.id);
+        ? (await readDraftFile(note.id, ownerId)) ?? await readNoteFile(note.id, ownerId)
+        : await readNoteFile(note.id, ownerId);
 
       return {
         note: {

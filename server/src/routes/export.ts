@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { PrismaClient } from '@prisma/client';
-import { readNoteFile, readDraftFile } from '../services/storage.js';
+import { readNoteFile, readDraftFile, readVersionFile } from '../services/storage.js';
+import { restoreVersion } from '../services/versioning.js';
 import { marked } from 'marked';
 
 const prisma = new PrismaClient();
@@ -23,8 +24,8 @@ export async function exportRoutes(server: FastifyInstance) {
     if (!note) return reply.code(404).send({ error: 'Note not found' });
 
     const content = note.isDirty
-      ? (await readDraftFile(note.id)) ?? await readNoteFile(note.id)
-      : await readNoteFile(note.id);
+      ? (await readDraftFile(note.id, request.user!.userId)) ?? await readNoteFile(note.id, request.user!.userId)
+      : await readNoteFile(note.id, request.user!.userId);
 
     const format = request.query.format || 'md';
 
@@ -85,8 +86,7 @@ export async function exportRoutes(server: FastifyInstance) {
     });
     if (!version) return reply.code(404).send({ error: 'Version not found' });
 
-    const { readVersionFile } = await import('../services/storage.js');
-    const content = await readVersionFile(request.params.id, version.versionNumber);
+    const content = await readVersionFile(request.params.id, version.versionNumber, request.user!.userId);
 
     return { version, content };
   });
@@ -102,8 +102,7 @@ export async function exportRoutes(server: FastifyInstance) {
     });
     if (!version) return reply.code(404).send({ error: 'Version not found' });
 
-    const { restoreVersion } = await import('../services/versioning.js');
-    await restoreVersion(note.id, version.versionNumber);
+    await restoreVersion(note.id, version.versionNumber, request.user!.userId);
 
     return { success: true };
   });

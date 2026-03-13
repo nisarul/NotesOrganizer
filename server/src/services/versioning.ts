@@ -5,6 +5,7 @@ const prisma = new PrismaClient();
 
 export async function createVersionSnapshot(
   noteId: string,
+  userId: string,
   message?: string
 ): Promise<{ versionNumber: number; contentPath: string }> {
   // Get current content: prefer draft if dirty, otherwise committed note
@@ -13,10 +14,10 @@ export async function createVersionSnapshot(
 
   let content: string;
   if (note.isDirty) {
-    const draft = await readDraftFile(noteId);
-    content = draft || await readNoteFile(noteId);
+    const draft = await readDraftFile(noteId, userId);
+    content = draft || await readNoteFile(noteId, userId);
   } else {
-    content = await readNoteFile(noteId);
+    content = await readNoteFile(noteId, userId);
   }
 
   // Determine next version number
@@ -27,7 +28,7 @@ export async function createVersionSnapshot(
   const versionNumber = (lastVersion?.versionNumber ?? 0) + 1;
 
   // Write version file
-  const contentPath = await writeVersionFile(noteId, versionNumber, content);
+  const contentPath = await writeVersionFile(noteId, versionNumber, content, userId);
 
   // Create version record
   await prisma.noteVersion.create({
@@ -42,19 +43,19 @@ export async function createVersionSnapshot(
   return { versionNumber, contentPath };
 }
 
-export async function commitNote(noteId: string, message?: string): Promise<void> {
+export async function commitNote(noteId: string, userId: string, message?: string): Promise<void> {
   const note = await prisma.note.findUnique({ where: { id: noteId } });
   if (!note) throw new Error(`Note ${noteId} not found`);
 
   // Read draft content
-  const draftContent = await readDraftFile(noteId);
-  const content = draftContent ?? await readNoteFile(noteId);
+  const draftContent = await readDraftFile(noteId, userId);
+  const content = draftContent ?? await readNoteFile(noteId, userId);
 
   // Write to committed note file
-  await writeNoteFile(noteId, content);
+  await writeNoteFile(noteId, content, userId);
 
   // Create version snapshot
-  await createVersionSnapshot(noteId, message);
+  await createVersionSnapshot(noteId, userId, message);
 
   // Clean up draft
   await deleteDraftFile(noteId);
@@ -66,17 +67,17 @@ export async function commitNote(noteId: string, message?: string): Promise<void
   });
 }
 
-export async function restoreVersion(noteId: string, versionNumber: number): Promise<void> {
+export async function restoreVersion(noteId: string, versionNumber: number, userId: string): Promise<void> {
   const versionRecord = await prisma.noteVersion.findFirst({
     where: { noteId, versionNumber },
   });
   if (!versionRecord) throw new Error(`Version ${versionNumber} not found for note ${noteId}`);
 
   const { readVersionFile } = await import('./storage.js');
-  const content = await readVersionFile(noteId, versionNumber);
+  const content = await readVersionFile(noteId, versionNumber, userId);
 
   // Write as current committed content
-  await writeNoteFile(noteId, content);
+  await writeNoteFile(noteId, content, userId);
 
   // Clean up any draft
   await deleteDraftFile(noteId);

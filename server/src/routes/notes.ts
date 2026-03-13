@@ -68,12 +68,17 @@ export async function noteRoutes(server: FastifyInstance) {
       await prisma.note.update({ where: { id: note.id }, data: { lastOpenedAt: new Date() } });
     }
 
+    // For public notes, get the owner's userId from the notebook
+    const ownerId = readonly
+      ? (await prisma.notebook.findUnique({ where: { id: note.notebookId }, select: { userId: true } }))!.userId
+      : userId!;
+
     let content: string;
     if (!readonly && note.isDirty) {
-      const draft = await readDraftFile(note.id);
-      content = draft ?? await readNoteFile(note.id);
+      const draft = await readDraftFile(note.id, ownerId);
+      content = draft ?? await readNoteFile(note.id, ownerId);
     } else {
-      content = await readNoteFile(note.id);
+      content = await readNoteFile(note.id, ownerId);
     }
 
     const breadcrumb = await buildBreadcrumb(note.notebookId, note.folderId);
@@ -173,7 +178,7 @@ export async function noteRoutes(server: FastifyInstance) {
 
     // Write initial content
     const initialContent = content || '';
-    await writeNoteFile(note.id, initialContent);
+    await writeNoteFile(note.id, initialContent, request.user!.userId);
     await prisma.note.update({
       where: { id: note.id },
       data: { contentPath: `data/notes/${note.id}.md` },
@@ -212,7 +217,7 @@ export async function noteRoutes(server: FastifyInstance) {
     });
     if (!note) return reply.code(404).send({ error: 'Note not found' });
 
-    await writeDraftFile(note.id, body.content);
+    await writeDraftFile(note.id, body.content, request.user!.userId);
     await prisma.note.update({
       where: { id: note.id },
       data: { isDirty: true, draftPath: `data/drafts/${note.id}.draft.md` },
@@ -230,7 +235,7 @@ export async function noteRoutes(server: FastifyInstance) {
     });
     if (!note) return reply.code(404).send({ error: 'Note not found' });
 
-    await commitNote(note.id, body?.message);
+    await commitNote(note.id, request.user!.userId, body?.message);
 
     return { success: true, isDirty: false };
   });

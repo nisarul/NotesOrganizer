@@ -50,8 +50,8 @@ export async function searchRoutes(server: FastifyInstance) {
 
       for (const note of allNotes) {
         const content = note.isDirty
-          ? (await readDraftFile(note.id)) ?? await readNoteFile(note.id)
-          : await readNoteFile(note.id);
+          ? (await readDraftFile(note.id, request.user!.userId)) ?? await readNoteFile(note.id, request.user!.userId)
+          : await readNoteFile(note.id, request.user!.userId);
 
         if (content.toLowerCase().includes(q.toLowerCase())) {
           contentMatches.push(note);
@@ -66,8 +66,8 @@ export async function searchRoutes(server: FastifyInstance) {
     const results = await Promise.all(
       allResults.map(async (note) => {
         const content = note.isDirty
-          ? (await readDraftFile(note.id)) ?? await readNoteFile(note.id)
-          : await readNoteFile(note.id);
+          ? (await readDraftFile(note.id, request.user!.userId)) ?? await readNoteFile(note.id, request.user!.userId)
+          : await readNoteFile(note.id, request.user!.userId);
 
         let snippet = '';
         if (q) {
